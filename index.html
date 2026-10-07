@@ -86,7 +86,8 @@ th,td{padding:8px;border-bottom:1px solid var(--br);text-align:left;white-space:
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 // URL proyek (tanpa /rest/v1/) dan publishable key. Key ini memang publik; keamanan data dijaga oleh login + RLS.
-const CFG = { url: "https://hrlztsomibzpumpclauu.supabase.co", key: "sb_publishable_wvfb5NG_ku7fq6_CJL_w0Q_7oMx8npR" };
+const CFG = { url: "https://hrlztsomibzpumpclauu.supabase.co", key: "sb_publishable_wvfb5NG_ku7fq6_CJL_w0Q_7oMx8npR",
+  fn: "hyper-function" }; // nama (slug) fungsi di URL Supabase: .../functions/v1/<slug>
 
 const sb = supabase.createClient(CFG.url, CFG.key);
 const $ = i => document.getElementById(i);
@@ -237,7 +238,7 @@ async function send(channel) {
   let sent = 0, failed = 0;
   try {
     while (true) {
-      const { data, error } = await sb.functions.invoke("send-slips", { body: { batch_id: id, channel } });
+      const { data, error } = await sb.functions.invoke(CFG.fn, { body: { batch_id: id, channel } });
       if (error || (data && data.error)) { say("Pengiriman berhenti: " + ((data && data.error) || error.message), 1); break; }
       sent += data.sent; failed += data.failed;
       $("prog").textContent = "Berhasil " + sent + " · gagal " + failed + " · sisa " + data.remaining;
