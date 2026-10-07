@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'unsafe-inline'; connect-src https://*.supabase.co; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Kirim Slip Gaji</title>
+<style>
+:root{--bg:#f6f7f4;--card:#fff;--tx:#1b2a22;--mut:#667;--br:#dde2dc;--ac:#128c4a;--acx:#fff;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#121815;--card:#1b231f;--tx:#e8efe9;--mut:#9aa8a0;--br:#2c3832;--ac:#2fbf71;--acx:#08140d;--bad:#ff8a7a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--br);border-radius:12px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+input,select{width:100%;padding:9px 10px;border:1px solid var(--br);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+button{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;background:var(--ac);color:var(--acx)}
+button.g{background:transparent;color:var(--tx);border:1px solid var(--br)}
+button:disabled{opacity:.5;cursor:default}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.tw{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px;border-bottom:1px solid var(--br);text-align:left;white-space:nowrap}
+.n{text-align:right}
+.hint{font-size:12.5px;color:var(--mut)}
+.bad{color:var(--bad)}
+.ok{color:var(--ac)}
+#msg{margin:0 0 12px;min-height:20px;font-size:14px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+  <h1>Kirim Slip Gaji</h1><button class="g" id="btnOut" hidden>Keluar</button>
+</div>
+<p id="msg"></p>
+
+<!-- LOGIN -->
+<div class="card" id="login" hidden style="max-width:380px">
+  <h2>Masuk HRD</h2>
+  <label for="em">Email</label><input id="em" type="email" autocomplete="username">
+  <label for="pw" style="margin-top:10px">Kata sandi</label><input id="pw" type="password" autocomplete="current-password">
+  <div class="bar"><button id="btnLogin">Masuk</button></div>
+</div>
+
+<div id="app" hidden>
+  <!-- UPLOAD -->
+  <div class="card">
+    <h2>1. Upload Excel gaji</h2>
+    <div class="row">
+      <div><label for="co">Nama perusahaan</label><input id="co" placeholder="PT Contoh Sejahtera"></div>
+      <div><label for="periode">Periode</label><input id="periode" placeholder="Oktober 2026"></div>
+    </div>
+    <label for="file">File .xlsx (sheet pertama)</label>
+    <input id="file" type="file" accept=".xlsx,.xls">
+    <p class="hint">Kolom: <b>nama, email, no_wa, jabatan, gaji_pokok, tunjangan, lembur, potongan, tanggal_lahir</b>. Email atau no_wa boleh salah satu. Tanggal lahir (format hari/bulan/tahun) dipakai sebagai kata sandi PDF (DDMMYYYY) dan <b>tidak disimpan</b>.</p>
+    <div id="errs" class="bad hint"></div>
+    <div class="tw" id="prev"></div>
+    <div class="bar"><button id="save" disabled>Simpan data</button><button class="g" id="tpl">Unduh template Excel</button></div>
+  </div>
+
+  <!-- KIRIM -->
+  <div class="card">
+    <h2>2. Kirim</h2>
+    <label for="sel">Pilih batch</label><select id="sel"></select>
+    <div class="bar">
+      <button id="sEmail">Kirim Email</button>
+      <button id="sWa">Kirim WhatsApp</button>
+      <button id="sBoth">Kirim Keduanya</button>
+      <button class="g" id="retry">Coba ulang yang gagal</button>
+      <button class="g" id="del">Hapus batch</button>
+    </div>
+    <p class="hint" id="prog"></p>
+    <div class="tw"><table><thead><tr><th>Nama</th><th>Email</th><th>WA</th><th class="n">Gaji bersih</th><th>Status email</th><th>Status WA</th></tr></thead><tbody id="tb"></tbody></table></div>
+  </div>
+</div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ISI DUA BARIS INI (anon key memang publik; keamanan dijaga oleh RLS)
+const CFG = { url: "GANTI_DENGAN_SUPABASE_URL", key: "GANTI_DENGAN_ANON_KEY" };
+
+const sb = supabase.createClient(CFG.url, CFG.key);
+const $ = i => document.getElementById(i);
+const COLS = ["nama","email","no_wa","jabatan","gaji_pokok","tunjangan","lembur","potongan","tanggal_lahir"];
+let parsed = [], busy = false;
+
+const say = (t, bad) => { const m = $("msg"); m.textContent = t || ""; m.className = bad ? "bad" : ""; };
+const el = (t, txt, cls) => { const e = document.createElement(t); if (txt != null) e.textContent = txt; if (cls) e.className = cls; return e; };
+const rp = n => "Rp " + Math.round(n).toLocaleString("id-ID");
+const num = v => { if (typeof v === "number") return v; const n = Number(String(v ?? "").replace(/[^\d-]/g, "")); return isNaN(n) ? 0 : n; };
+const wa = v => { let d = String(v ?? "").replace(/\D/g, ""); if (!d) return ""; if (d[0] === "0") d = "62" + d.slice(1); else if (d[0] === "8") d = "62" + d; return d; };
+const mask = (s, keep) => !s ? "-" : s.length <= keep ? s : s.slice(0, keep) + "***";
+
+function show(on) { $("login").hidden = on; $("app").hidden = !on; $("btnOut").hidden = !on; }
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return show(false);
+  const { data } = await sb.from("admins").select("user_id").maybeSingle();
+  if (!data) { await sb.auth.signOut(); show(false); return say("Akun ini bukan admin HRD.", 1); }
+  show(true); loadBatches();
+}
+$("btnLogin").onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email: $("em").value.trim(), password: $("pw").value });
+  $("pw").value = "";
+  if (error) return say("Login gagal. Periksa email dan kata sandi.", 1);
+  say(""); boot();
+};
+$("btnOut").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+$("tpl").onclick = () => {
+  const ws = XLSX.utils.aoa_to_sheet([COLS, ["Budi Santoso", "budi@contoh.com", "081234567890", "Staf Admin", 5000000, 750000, 300000, 250000, "05/03/1990"]]);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Gaji");
+  XLSX.writeFile(wb, "template-slip-gaji.xlsx");
+};
+
+$("file").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const wb = XLSX.read(await f.arrayBuffer());
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+  parsed = []; const errs = [];
+  raw.forEach((r, i) => {
+    const k = {}; for (const key in r) k[key.trim().toLowerCase().replace(/\s+/g, "_")] = r[key];
+    const o = { nama: String(k.nama || "").trim(), email: String(k.email || "").trim().toLowerCase(), wa: wa(k.no_wa),
+      jabatan: String(k.jabatan || "").trim(), gaji_pokok: num(k.gaji_pokok), tunjangan: num(k.tunjangan), lembur: num(k.lembur), potongan: num(k.potongan), pw: dob(k.tanggal_lahir), id: crypto.randomUUID() };
+    const ln = "Baris " + (i + 2) + ": ";
+    if (!o.nama) { errs.push(ln + "nama kosong"); return; }
+    if (!o.pw) { errs.push(ln + "tanggal_lahir kosong/tidak valid (" + o.nama + "), dilewati"); return; }
+    if (o.email && !/^\S+@\S+\.\S+$/.test(o.email)) { errs.push(ln + "email tidak valid (" + o.nama + ")"); o.email = ""; }
+    if (o.wa && (o.wa.length < 10 || o.wa.length > 15)) { errs.push(ln + "nomor WA tidak valid (" + o.nama + ")"); o.wa = ""; }
+    if (!o.email && !o.wa) errs.push(ln + o.nama + " tidak punya email/WA valid, akan dilewati saat kirim");
+    parsed.push(o);
+  });
+  $("errs").textContent = errs.join(" · ");
+  const t = el("table"), h = el("tr");
+  ["Nama", "Email", "WA", "Gaji bersih"].forEach(x => h.appendChild(el("th", x)));
+  t.appendChild(h);
+  parsed.forEach(p => { const tr = el("tr"); tr.append(el("td", p.nama), el("td", p.email || "-"), el("td", p.wa || "-"), el("td", rp(p.gaji_pokok + p.tunjangan + p.lembur - p.potongan), "n")); t.appendChild(tr); });
+  $("prev").replaceChildren(t);
+  $("save").disabled = !parsed.length;
+};
+
+function dob(v) {
+  let y, m, d, x;
+  if (typeof v === "number") { const c = XLSX.SSF.parse_date_code(v); if (!c) return ""; y = c.y; m = c.m; d = c.d; }
+  else {
+    const s = String(v || "").trim();
+    if ((x = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/))) { d = +x[1]; m = +x[2]; y = +x[3]; }
+    else if ((x = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/))) { y = +x[1]; m = +x[2]; d = +x[3]; }
+    else return "";
+  }
+  if (y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return "";
+  return String(d).padStart(2, "0") + String(m).padStart(2, "0") + y;
+}
+
+function makePdf(p, co, per) {
+  const owner = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, "0")).join("");
+  const d = new window.jspdf.jsPDF({ unit: "mm", format: "a5", encryption: { userPassword: p.pw, ownerPassword: owner, userPermissions: ["print"] } });
+  const net = p.gaji_pokok + p.tunjangan + p.lembur - p.potongan;
+  let y = 18;
+  d.setFont("helvetica", "bold"); d.setFontSize(15); d.text("SLIP GAJI", 14, y);
+  d.setFont("helvetica", "normal"); d.setFontSize(10);
+  y += 7; d.text(co, 14, y); y += 5; d.text("Periode: " + per, 14, y);
+  y += 5; d.line(14, y, 134, y); y += 8;
+  d.text("Nama", 14, y); d.text(": " + p.nama, 40, y); y += 6;
+  d.text("Jabatan", 14, y); d.text(": " + (p.jabatan || "-"), 40, y); y += 10;
+  [["Gaji pokok", p.gaji_pokok], ["Tunjangan", p.tunjangan], ["Lembur", p.lembur], ["Potongan", -p.potongan]].forEach(([k, v]) => {
+    d.text(k, 14, y); d.text((v < 0 ? "-" : "") + rp(Math.abs(v)), 134, y, { align: "right" }); y += 7;
+  });
+  d.line(14, y - 3, 134, y - 3); y += 3;
+  d.setFont("helvetica", "bold"); d.text("Gaji bersih", 14, y); d.text(rp(net), 134, y, { align: "right" });
+  y += 14; d.setFont("helvetica", "normal"); d.setFontSize(8);
+  d.text("Dokumen ini bersifat rahasia. Hubungi HRD bila ada pertanyaan.", 14, y);
+  return d.output("blob");
+}
+
+$("save").onclick = async () => {
+  const periode = $("periode").value.trim(), pr = $("co").value.trim();
+  if (!periode || !pr || !parsed.length) return say("Isi nama perusahaan, periode, dan upload Excel.", 1);
+  busy = true; document.querySelectorAll("button").forEach(x => x.disabled = true);
+  try {
+    const { data: b, error } = await sb.from("batches").insert({ periode, perusahaan: pr }).select("id").single();
+    if (error) return say("Gagal menyimpan: " + error.message, 1);
+    // pw (tanggal lahir) sengaja dibuang: tidak pernah dikirim ke database
+    const rows = parsed.map(({ pw, ...r }) => ({ ...r, batch_id: b.id, pdf_path: b.id + "/" + r.id + ".pdf" }));
+    const { error: e2 } = await sb.from("slips").insert(rows);
+    if (e2) { await sb.from("batches").delete().eq("id", b.id); return say("Gagal menyimpan: " + e2.message, 1); }
+    const bad = [];
+    for (let i = 0; i < parsed.length; i++) {
+      say("Membuat dan mengunggah PDF " + (i + 1) + "/" + parsed.length + "...");
+      try {
+        const { error: ue } = await sb.storage.from("slips").upload(rows[i].pdf_path, makePdf(parsed[i], pr, periode), { contentType: "application/pdf" });
+        if (ue) throw ue;
+      } catch (e) { bad.push(parsed[i].id); }
+    }
+    if (bad.length) await sb.from("slips").update({ pdf_path: null }).in("id", bad);
+    say(bad.length ? "Tersimpan, tetapi " + bad.length + " PDF gagal dibuat (akan ditandai gagal saat kirim)." : "Data dan PDF tersimpan. Pilih batch di langkah 2 untuk mengirim.", !!bad.length);
+    parsed = []; $("prev").replaceChildren(); $("file").value = ""; $("errs").textContent = "";
+    await loadBatches(b.id);
+  } finally { busy = false; document.querySelectorAll("button").forEach(x => x.disabled = false); $("save").disabled = !parsed.length; }
+};
+
+async function loadBatches(sel) {
+  const { data } = await sb.from("batches").select("id,periode,perusahaan,created_at").order("created_at", { ascending: false });
+  const s = $("sel"); s.replaceChildren();
+  (data || []).forEach(b => { const o = el("option", b.perusahaan + " · " + b.periode + " · " + new Date(b.created_at).toLocaleDateString("id-ID")); o.value = b.id; s.appendChild(o); });
+  if (sel) s.value = sel;
+  loadSlips();
+}
+$("sel").onchange = loadSlips;
+
+function stat(s, err) { const c = el("td", s); c.className = s === "sent" ? "ok" : s === "failed" ? "bad" : ""; if (err) c.title = err; return c; }
+async function loadSlips() {
+  const id = $("sel").value; $("tb").replaceChildren(); if (!id) return;
+  const { data } = await sb.from("slips").select("nama,email,wa,net,email_status,wa_status,email_error,wa_error").eq("batch_id", id).order("nama");
+  (data || []).forEach(s => {
+    const tr = el("tr");
+    tr.append(el("td", s.nama), el("td", mask(s.email, 3)), el("td", mask(s.wa, 5)), el("td", rp(s.net), "n"), stat(s.email_status, s.email_error), stat(s.wa_status, s.wa_error));
+    $("tb").appendChild(tr);
+  });
+}
+
+async function send(channel) {
+  const id = $("sel").value; if (!id || busy) return;
+  const label = { email: "Email", wa: "WhatsApp", both: "Email dan WhatsApp" }[channel];
+  if (!confirm("Kirim slip gaji via " + label + " ke semua karyawan di batch ini yang belum terkirim?")) return;
+  busy = true; document.querySelectorAll("button").forEach(b => b.disabled = true);
+  let sent = 0, failed = 0;
+  try {
+    while (true) {
+      const { data, error } = await sb.functions.invoke("send-slips", { body: { batch_id: id, channel } });
+      if (error || (data && data.error)) { say("Pengiriman berhenti: " + ((data && data.error) || error.message), 1); break; }
+      sent += data.sent; failed += data.failed;
+      $("prog").textContent = "Berhasil " + sent + " · gagal " + failed + " · sisa " + data.remaining;
+      await loadSlips();
+      if (data.remaining === 0 || data.processed === 0) { say("Selesai."); break; }
+    }
+  } finally { busy = false; document.querySelectorAll("button").forEach(b => b.disabled = false); $("save").disabled = !parsed.length; }
+}
+$("sEmail").onclick = () => send("email");
+$("sWa").onclick = () => send("wa");
+$("sBoth").onclick = () => send("both");
+
+$("retry").onclick = async () => {
+  const id = $("sel").value; if (!id) return;
+  await sb.from("slips").update({ email_status: "pending", email_error: null }).eq("batch_id", id).eq("email_status", "failed");
+  await sb.from("slips").update({ wa_status: "pending", wa_error: null }).eq("batch_id", id).eq("wa_status", "failed");
+  say("Status gagal direset. Klik tombol kirim lagi."); loadSlips();
+};
+$("del").onclick = async () => {
+  const id = $("sel").value; if (!id || !confirm("Hapus batch ini beserta semua datanya? Tidak bisa dibatalkan.")) return;
+  const { data: f } = await sb.from("slips").select("pdf_path").eq("batch_id", id);
+  const paths = (f || []).map(x => x.pdf_path).filter(Boolean);
+  if (paths.length) await sb.storage.from("slips").remove(paths);
+  await sb.from("batches").delete().eq("id", id); say("Batch dan file PDF dihapus."); loadBatches();
+};
+
+boot();
+</script>
+</body>
+</html>
