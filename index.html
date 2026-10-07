@@ -235,11 +235,12 @@ async function send(channel) {
   const label = { email: "Email", wa: "WhatsApp", both: "Email dan WhatsApp" }[channel];
   if (!confirm("Kirim slip gaji via " + label + " ke semua karyawan di batch ini yang belum terkirim?")) return;
   busy = true; document.querySelectorAll("button").forEach(b => b.disabled = true);
-  let sent = 0, failed = 0;
+  let sent = 0, failed = 0, guard = 0;
   try {
-    while (true) {
+    while (guard++ < 200) {
       const { data, error } = await sb.functions.invoke(CFG.fn, { body: { batch_id: id, channel } });
       if (error || (data && data.error)) { say("Pengiriman berhenti: " + ((data && data.error) || error.message), 1); break; }
+      if (!data || typeof data.remaining !== "number") { say("Pengiriman dihentikan: balasan fungsi tidak dikenali. Pastikan kode fungsi send-slips sudah terpasang dengan benar.", 1); break; }
       sent += data.sent; failed += data.failed;
       $("prog").textContent = "Berhasil " + sent + " · gagal " + failed + " · sisa " + data.remaining;
       await loadSlips();
