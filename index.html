@@ -76,7 +76,7 @@ th,td{padding:8px;border-bottom:1px solid var(--br);text-align:left;white-space:
       <button class="g" id="del">Hapus batch</button>
     </div>
     <p class="hint" id="prog"></p>
-    <div class="tw"><table><thead><tr><th>Nama</th><th>Email</th><th>WA</th><th class="n">Gaji bersih</th><th>Status email</th><th>Status WA</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Nama</th><th>Email</th><th>WA</th><th class="n">Gaji bersih</th><th>Status email</th><th>Status WA</th><th>Keterangan</th></tr></thead><tbody id="tb"></tbody></table></div>
   </div>
 </div>
 </main>
@@ -225,7 +225,7 @@ async function loadSlips() {
   const { data } = await sb.from("slips").select("nama,email,wa,net,email_status,wa_status,email_error,wa_error").eq("batch_id", id).order("nama");
   (data || []).forEach(s => {
     const tr = el("tr");
-    tr.append(el("td", s.nama), el("td", mask(s.email, 3)), el("td", mask(s.wa, 5)), el("td", rp(s.net), "n"), stat(s.email_status, s.email_error), stat(s.wa_status, s.wa_error));
+    tr.append(el("td", s.nama), el("td", mask(s.email, 3)), el("td", mask(s.wa, 5)), el("td", rp(s.net), "n"), stat(s.email_status, s.email_error), stat(s.wa_status, s.wa_error), el("td", [s.email_error, s.wa_error].filter(Boolean).join(" · "), "bad"));
     $("tb").appendChild(tr);
   });
 }
