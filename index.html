@@ -81,11 +81,11 @@ th,td{padding:8px;border-bottom:1px solid var(--br);text-align:left;white-space:
 </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-// ISI DUA BARIS INI (anon key memang publik; keamanan dijaga oleh RLS)
+// URL proyek (tanpa /rest/v1/) dan publishable key. Key ini memang publik; keamanan data dijaga oleh login + RLS.
 const CFG = { url: "https://hrlztsomibzpumpclauu.supabase.co", key: "sb_publishable_wvfb5NG_ku7fq6_CJL_w0Q_7oMx8npR" };
 
 const sb = supabase.createClient(CFG.url, CFG.key);
@@ -112,7 +112,7 @@ async function boot() {
 $("btnLogin").onclick = async () => {
   const { error } = await sb.auth.signInWithPassword({ email: $("em").value.trim(), password: $("pw").value });
   $("pw").value = "";
-  if (error) return say("Login gagal. Periksa email dan kata sandi.", 1);
+  if (error) return say("Login gagal: " + error.message, 1);
   say(""); boot();
 };
 $("btnOut").onclick = async () => { await sb.auth.signOut(); location.reload(); };

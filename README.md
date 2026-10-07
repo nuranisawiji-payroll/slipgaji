@@ -33,16 +33,16 @@ supabase/functions/send-slips/index.ts  fungsi pengirim (jalan di server Supabas
 Install Supabase CLI, lalu di folder ini:
 ```bash
 supabase login
-supabase link --project-ref <PROJECT_REF>
+supabase link --project-ref hrlztsomibzpumpclauu
 supabase secrets set RESEND_API_KEY=re_xxx FONNTE_TOKEN=xxx \
   FROM_EMAIL="Slip Gaji <slip@domainanda.com>" \
-  ALLOWED_ORIGIN=https://<username>.github.io
+  ALLOWED_ORIGIN=https://nuranisawiji-payroll.github.io
 supabase functions deploy send-slips
 ```
 Biarkan "Verify JWT" tetap aktif (default).
 
 ### 4. Halaman web
-1. Buka `index.html`, ganti `GANTI_DENGAN_SUPABASE_URL` dan `GANTI_DENGAN_ANON_KEY`.
+1. URL proyek dan publishable key sudah terisi di `index.html` (URL harus tanpa `/rest/v1/`).
 2. Buat repo GitHub, upload semua file, aktifkan **Settings → Pages** (branch main).
 3. Buka alamat Pages Anda, login, dan **uji dulu dengan 1–2 karyawan (nomor/email Anda sendiri)**.
 
